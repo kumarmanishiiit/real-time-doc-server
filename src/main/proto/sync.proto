@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package sync;
+
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_package = "com.iiith.assignment.model.sync";
+
+message ContentChanges {
+  repeated ContentChange contentChange = 1;
+  string client_id = 2;
+}
+
+enum ACTION {
+  UNKNOWN = 0;
+  ADD = 1;
+  MODIFY = 2;
+  DELETE = 3;
+  REGISTER = 4;
+}
+
+message ContentChange {
+  ACTION action = 1;
+  int32 line = 2;
+  string content = 3;
+}
+
+message Client {
+  string client_id = 1;
+}
+
+service SyncService {
+  // unary
+  rpc SyncFile(ContentChanges) returns (stream ContentChanges);
+
+  rpc registerClient(Client) returns (stream ContentChanges);
+
+  rpc DownloadFile(FileRequest) returns (stream FileChunk);
+}
+
+// The client sends a request with the file name
+message FileRequest {
+  string file_name = 1;
+}
+
+// The server streams the file in chunks
+message FileChunk {
+  bytes content = 1;
+  int32 size = 2; // Size of this chunk
+}
