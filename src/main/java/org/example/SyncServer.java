@@ -6,6 +6,8 @@ import io.grpc.ServerBuilder;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.checkerframework.checker.units.qual.A;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -13,6 +15,8 @@ import java.util.List;
 import java.util.Random;
 
 public class SyncServer {
+
+    private static Logger log = LoggerFactory.getLogger(SyncServer.class);
 
     static List<String> currentContent =  new ArrayList<>();
 
@@ -27,16 +31,12 @@ public class SyncServer {
                 .build();
 
         server.start();
-        System.out.println("Server started on port 9090");
-
+        log.info("Server started on port 9090");
         server.awaitTermination();
     }
 
     // Broadcast the same message to all connected clients
     private static void broadcastMessage(List<ContentChange> contentChanges, String clientID) {
-        List<ContentChange> contentChangeList = new ArrayList<>();
-//        contentChangeList.add(ContentChange.newBuilder().setContent(message).setActionValue(1).setLine(new Random().nextInt(100)).build());
-//        ContentChanges contentChanges = ContentChanges.newBuilder().addAllContentChange(contentChangeList).build();
 
         // Build the response to broadcast
         ContentChanges response = ContentChanges.newBuilder()
@@ -60,6 +60,7 @@ public class SyncServer {
             File file = new File("server/cache/test.txt");
 
             if (!file.exists()) {
+                log.error("File not found");
                 responseObserver.onError(new RuntimeException("File not found"));
                 return;
             }
@@ -81,7 +82,7 @@ public class SyncServer {
                 }
                 responseObserver.onCompleted();
             } catch (IOException e) {
-                e.printStackTrace();
+                log.error("Error {}", e.getMessage());
                 responseObserver.onError(e);
             }
         }
@@ -91,7 +92,6 @@ public class SyncServer {
             List<ContentChange> contentChanges = request.getContentChangeList();
 
             String clientID = request.getClientId();
-
             contentChanges.forEach(contentChange -> {
                 currentContent.add(contentChange.getContent());
             });
@@ -101,16 +101,15 @@ public class SyncServer {
                 try {
                     Thread.sleep(5000); // 5 seconds delay between broadcasts
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    log.error("Error {}", e.getMessage());
                 }
             }).start();
         }
 
         @Override
         public void registerClient(Client request, io.grpc.stub.StreamObserver<ContentChanges> responseObserver) {
-//            super.registerClient(request, responseObserver);
             String requestData = request.getClientId();
-            System.out.println("Register request from client: " + requestData);
+            log.debug("Register request from client: {}", requestData);
 
             List<ContentChange> contentChangeList = new ArrayList<>();
             contentChangeList.add(ContentChange.newBuilder().setContent("Registered for file").setAction(ACTION.REGISTER).setLine(-1).build());
@@ -123,7 +122,7 @@ public class SyncServer {
 
             // Set a cancellation handler to handle client-side cancellation
             serverObserver.setOnCancelHandler(() -> {
-                System.out.println("Client cancelled the call. Removing it from observer list...");
+                log.warn("Client cancelled the call. Removing it from observer list...");
                 // Clean up resources or stop processing if necessary
                 clients.remove(responseObserver);
 
@@ -144,9 +143,8 @@ public class SyncServer {
             try {
                 Thread.sleep(1000); // 1 second delay between messages
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log.error("Error {}", e.getMessage());
               }
-//            responseObserver.onCompleted();
         }
 
         public void loadToFSFromCurrentContent() {
@@ -159,6 +157,7 @@ public class SyncServer {
                 }
                 bufferedWriter.close();
             } catch (IOException e) {
+                log.error("Error {}", e.getMessage());
                 throw new RuntimeException(e);
             }
 
